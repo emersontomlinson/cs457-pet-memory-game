@@ -17,7 +17,7 @@
 > - You are encouraged to use python, but I'm not going to make it a strict requirement. The instructor and TA's ability to help with C or Rust, etc will be diminished in other languages.
 
 ### 1.1 Game Overview
-- **Chosen Game:** Memory Matching Game
+- **Chosen Game:** Pet Memory Matching Game
 - **Player Capacity:** 2 Players (Simulated via 2 CML Client nodes)
 - **Game Summary:** Pet Memory Match is a two-player, terminal-based memory matching game featuring my four pets. The server shuffles eight hidden cards containing two cards for each pet name. Players alternate choosing two hidden card positions. Both players see the revealed cards. If the chosen cards match, the active player earns one point and takes another turn. If they do not match, the cards are hidden again and the turn passes to the other player.
 
