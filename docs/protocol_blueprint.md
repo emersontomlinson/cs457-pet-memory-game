@@ -1,101 +1,48 @@
-# Protocol Blueprint: Pet Memory Match
+# Pet Memory Match Protocol
 
-## 1. Design Choices
+## Format
 
-- **Transport Protocol:** TCP
-- **Serialization Format:** JSON encoded as UTF-8
-- **Framing Rule:** Newline-delimited JSON
-- **Server Role:** The server is authoritative. It stores the shuffled cards, revealed and matched cards, player scores, connected clients, and active turn.
+- **Transport:** TCP
+- **Message format:** UTF-8 JSON
+- **Framing:** Every JSON message ends with `\n`.
 
-### 1.1 TCP Framing Rule
-
-TCP sends a continuous stream of bytes, not separate messages. Therefore, every JSON message sent by this game must be UTF-8 encoded and end with exactly one newline character (`\n`).
-
-The receiver keeps incoming bytes in a buffer. Each time a newline is found, the receiver removes one complete line from the buffer and parses that line as one JSON message. Any remaining bytes stay in the buffer until another complete message arrives.
-
-### 1.2 Wire Example
-
-Two messages may arrive together in one TCP receive operation:
+TCP is a stream, so the receiver keeps incoming bytes in a buffer and parses a message only when it finds `\n`.
 
 ```text
-{"msg_type":"CONNECT","player_id":"Player_1","payload":{"alias":"Emerson"}}\n{"msg_type":"MOVE","player_id":"Player_1","payload":{"positions":["A1","B2"]}}\n
+{"msg_type":"CONNECT","player_id":"UNASSIGNED","payload":{"alias":"Emerson"},"timestamp":1790000000}\n{"msg_type":"MOVE","player_id":"Player_1","payload":{"positions":["A1","B2"]},"timestamp":1790000005}\n
 ```
 
-A message may also arrive in pieces. The receiver must wait until it has received the newline before parsing the JSON message.
+Every message has `msg_type` (string), `player_id` (string), `payload` (object), and `timestamp` (integer).
 
-## 2. Common Message Format
+## Messages
 
-Every message is a JSON object with these fields:
-
-| Field | Type | Required | Description |
+| Type | Direction | Purpose | Payload fields and types |
 | --- | --- | --- | --- |
-| `msg_type` | string | Yes | The message kind, such as `CONNECT`, `MOVE`, or `STATE_UPDATE`. |
-| `player_id` | string | Yes | The sender's assigned player ID: `Player_1`, `Player_2`, or `SERVER`. |
-| `payload` | object | Yes | The message-specific data. |
-| `timestamp` | integer | Yes | Unix time in seconds when the message was created. |
+| `CONNECT` | Client → Server | Join the game | `alias`: string |
+| `LOBBY_WAIT` | Server → Client | Wait for Player 2 | `message`: string |
+| `GAME_START` | Server → Both Clients | Start game and assign players | `players`: object, `active_player`: string |
+| `MOVE` | Client → Server | Select two cards | `positions`: array of two different strings from `A1`–`B4` |
+| `STATE_UPDATE` | Server → Both Clients | Send current game state | `board`: object mapping `A1`–`B4` to `HIDDEN` or pet names; `scores`: object of player IDs to integers; `active_player`: string; `message`: string |
+| `ERROR` | Server → Client | Reject a bad request | `code`: string; `message`: string |
+| `DISCONNECT` | Client → Server | Leave the game | `reason`: string |
+| `GAME_OVER` | Server → Both Clients | Send final result | `outcome`: string (`win`, `tie`, or `forfeit`); `winner`: string or `null`; `final_scores`: object |
 
-Example common message structure:
-
-```json
-{
-  "msg_type": "MESSAGE_TYPE",
-  "player_id": "Player_1",
-  "payload": {},
-  "timestamp": 1780000000
-}
-```
-## 3. Client-to-Server Message Types
-
-### 3.1 `CONNECT`
-
-- **Direction:** Client → Server
-- **Purpose:** Requests to join the game and provides the player's display name.
-- **Payload fields:**
-  - `alias` (string): Player-chosen name, 1–20 characters.
+## Sample Payloads
 
 ```json
-{
-  "msg_type": "CONNECT",
-  "player_id": "UNASSIGNED",
-  "payload": {
-    "alias": "Emerson"
-  },
-  "timestamp": 1790000000
-}
+CONNECT: {"alias":"Emerson"}
+LOBBY_WAIT: {"message":"Waiting for Player 2."}
+GAME_START: {"players":{"Player_1":"Emerson","Player_2":"Opponent"},"active_player":"Player_1"}
+MOVE: {"positions":["A1","B2"]}
+STATE_UPDATE: {"board":{"A1":"Cordelia","A2":"HIDDEN","A3":"HIDDEN","A4":"HIDDEN","B1":"HIDDEN","B2":"Cordelia","B3":"HIDDEN","B4":"HIDDEN"},"scores":{"Player_1":1,"Player_2":0},"active_player":"Player_1","message":"Match found."}
+ERROR: {"code":"NOT_YOUR_TURN","message":"It is Player_1's turn."}
+DISCONNECT: {"reason":"user_exit"}
+GAME_OVER: {"outcome":"win","winner":"Player_1","final_scores":{"Player_1":3,"Player_2":1}}
 ```
 
-### 3.2 `MOVE`
+## Disconnects
 
-- **Direction:** Client → Server
-- **Purpose:** The active player selects exactly two different hidden card positions for one turn.
-- **Payload fields:**
-  - `positions` (array of two strings): Valid board positions: `A1`, `A2`, `A3`, `A4`, `B1`, `B2`, `B3`, or `B4`.
-
-```json
-{
-  "msg_type": "MOVE",
-  "player_id": "Player_1",
-  "payload": {
-    "positions": ["A1", "B2"]
-  },
-  "timestamp": 1790000005
-}
-```
-
-### 3.3 `DISCONNECT`
-
-- **Direction:** Client → Server
-- **Purpose:** Notifies the server that a player is intentionally leaving the game.
-- **Payload fields:**
-  - `reason` (string): A short explanation, such as `quit` or `user_exit`.
-
-```json
-{
-  "msg_type": "DISCONNECT",
-  "player_id": "Player_2",
-  "payload": {
-    "reason": "user_exit"
-  },
-  "timestamp": 1790000010
-}
-```
+- `DISCONNECT` is a normal exit.
+- `recv()` returning `b""` means TCP EOF and a disconnected client.
+- `ConnectionResetError`, `BrokenPipeError`, and `ConnectionAbortedError` mean an abrupt disconnect.
+- An in-game disconnect gives the other player a forfeit win. A lobby disconnect returns the server to waiting.
