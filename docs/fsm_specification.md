@@ -9,11 +9,11 @@ stateDiagram-v2
     WAITING_FOR_PLAYERS --> GAME_START: Second CONNECT
     WAITING_FOR_PLAYERS --> CLEANUP: Player disconnects
 
-    GAME_START --> PLAYER_TURN: Shuffle cards and assign players
+    GAME_START --> PLAYER_TURN: Shuffle cards / assign Player_1 and Player_2
 
     PLAYER_TURN --> EVALUATE_MOVE: Valid MOVE from active player
     PLAYER_TURN --> PLAYER_TURN: Bad or out-of-turn MOVE / ERROR
-    PLAYER_TURN --> GAME_OVER: Disconnect / forfeit
+    PLAYER_TURN --> GAME_OVER: Disconnect or network drop / forfeit
 
     EVALUATE_MOVE --> PLAYER_TURN: Match / score and same turn
     EVALUATE_MOVE --> PLAYER_TURN: No match / hide cards and switch turn
