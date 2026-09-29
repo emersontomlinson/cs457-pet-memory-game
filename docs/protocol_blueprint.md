@@ -44,3 +44,58 @@ Example common message structure:
   "timestamp": 1780000000
 }
 ```
+## 3. Client-to-Server Message Types
+
+### 3.1 `CONNECT`
+
+- **Direction:** Client → Server
+- **Purpose:** Requests to join the game and provides the player's display name.
+- **Payload fields:**
+  - `alias` (string): Player-chosen name, 1–20 characters.
+
+```json
+{
+  "msg_type": "CONNECT",
+  "player_id": "UNASSIGNED",
+  "payload": {
+    "alias": "Emerson"
+  },
+  "timestamp": 1790000000
+}
+```
+
+### 3.2 `MOVE`
+
+- **Direction:** Client → Server
+- **Purpose:** The active player selects exactly two different hidden card positions for one turn.
+- **Payload fields:**
+  - `positions` (array of two strings): Valid board positions: `A1`, `A2`, `A3`, `A4`, `B1`, `B2`, `B3`, or `B4`.
+
+```json
+{
+  "msg_type": "MOVE",
+  "player_id": "Player_1",
+  "payload": {
+    "positions": ["A1", "B2"]
+  },
+  "timestamp": 1790000005
+}
+```
+
+### 3.3 `DISCONNECT`
+
+- **Direction:** Client → Server
+- **Purpose:** Notifies the server that a player is intentionally leaving the game.
+- **Payload fields:**
+  - `reason` (string): A short explanation, such as `quit` or `user_exit`.
+
+```json
+{
+  "msg_type": "DISCONNECT",
+  "player_id": "Player_2",
+  "payload": {
+    "reason": "user_exit"
+  },
+  "timestamp": 1790000010
+}
+```
