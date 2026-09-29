@@ -29,7 +29,7 @@ Every message has `msg_type` (string), `player_id` (string), `payload` (object),
 
 ## Sample Payloads
 
-```json
+```text
 CONNECT: {"alias":"Emerson"}
 LOBBY_WAIT: {"message":"Waiting for Player 2."}
 GAME_START: {"players":{"Player_1":"Emerson","Player_2":"Opponent"},"active_player":"Player_1"}
