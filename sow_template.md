@@ -105,3 +105,135 @@
 - **CML Deployment Strategy:** Deploy `server.py` onto Subnet C node (`192.168.20.100`) behind Router R2, and `client.py` onto Subnet A and Subnet B nodes behind Router R1.
 - **Cisco Infrastructure Configuration:** Router R1 DHCP pools (`CLIENT1_POOL`, `CLIENT2_POOL`) and Router R2 authoritative DNS (`ip host server.[lastname].edu 192.168.20.100`).
 - **Wireshark Trace Capture Plan:** Capture DHCP DORA exchange (`dhcp_negotiation.pcap`) and DNS query/response resolution (`dns_lookup.pcap`).
+
+- ## 4. Server-to-Client Message Types
+
+### 4.1 `LOBBY_WAIT`
+
+- **Direction:** Server → Client
+- **Purpose:** Tells the first connected player that the server is waiting for a second player.
+- **Payload fields:**
+  - `message` (string): Lobby status message.
+  - `connected_players` (integer): Number of currently connected players.
+
+```json
+{
+  "msg_type": "LOBBY_WAIT",
+  "player_id": "SERVER",
+  "payload": {
+    "message": "Waiting for another player to connect.",
+    "connected_players": 1
+  },
+  "timestamp": 1790000001
+}
+```
+
+### 4.2 `GAME_START`
+
+- **Direction:** Server → Both Clients
+- **Purpose:** Starts a new game and assigns Player 1 and Player 2.
+- **Payload fields:**
+  - `players` (object): Maps player IDs to display names.
+  - `active_player` (string): The player ID allowed to make the first move.
+  - `board_rows` (integer): Number of board rows.
+  - `board_columns` (integer): Number of board columns.
+
+```json
+{
+  "msg_type": "GAME_START",
+  "player_id": "SERVER",
+  "payload": {
+    "players": {
+      "Player_1": "Emerson",
+      "Player_2": "Opponent"
+    },
+    "active_player": "Player_1",
+    "board_rows": 2,
+    "board_columns": 4
+  },
+  "timestamp": 1790000002
+}
+```
+
+### 4.3 `STATE_UPDATE`
+
+- **Direction:** Server → Both Clients
+- **Purpose:** Broadcasts the current board display, scores, and active player after a valid move.
+- **Payload fields:**
+  - `board` (object): Maps each position (`A1` through `B4`) to either `HIDDEN` or a pet name.
+  - `scores` (object): Maps player IDs to integer scores.
+  - `active_player` (string): The player ID whose turn is next.
+  - `message` (string): A brief result, such as `Match found` or `No match`.
+
+```json
+{
+  "msg_type": "STATE_UPDATE",
+  "player_id": "SERVER",
+  "payload": {
+    "board": {
+      "A1": "Cordelia",
+      "A2": "HIDDEN",
+      "A3": "HIDDEN",
+      "A4": "HIDDEN",
+      "B1": "HIDDEN",
+      "B2": "Cordelia",
+      "B3": "HIDDEN",
+      "B4": "HIDDEN"
+    },
+    "scores": {
+      "Player_1": 1,
+      "Player_2": 0
+    },
+    "active_player": "Player_1",
+    "message": "Match found. Player_1 takes another turn."
+  },
+  "timestamp": 1790000006
+}
+```
+
+### 4.4 `ERROR`
+
+- **Direction:** Server → Client
+- **Purpose:** Rejects an invalid, malformed, duplicate, already matched, or out-of-turn move without ending the game.
+- **Payload fields:**
+  - `code` (string): One of `NOT_YOUR_TURN`, `INVALID_POSITION`, `DUPLICATE_POSITION`, `CARD_ALREADY_MATCHED`, or `MALFORMED_MESSAGE`.
+  - `message` (string): A player-readable explanation.
+
+```json
+{
+  "msg_type": "ERROR",
+  "player_id": "SERVER",
+  "payload": {
+    "code": "NOT_YOUR_TURN",
+    "message": "It is currently Player_1's turn."
+  },
+  "timestamp": 1790000007
+}
+```
+
+### 4.5 `GAME_OVER`
+
+- **Direction:** Server → Both Clients
+- **Purpose:** Announces the final outcome when all pairs are found or a player forfeits.
+- **Payload fields:**
+  - `outcome` (string): Either `win`, `tie`, or `forfeit`.
+  - `winner` (string or null): Winning player ID, or `null` for a tie.
+  - `final_scores` (object): Maps player IDs to final integer scores.
+  - `reason` (string): Explains why the game ended.
+
+```json
+{
+  "msg_type": "GAME_OVER",
+  "player_id": "SERVER",
+  "payload": {
+    "outcome": "win",
+    "winner": "Player_1",
+    "final_scores": {
+      "Player_1": 3,
+      "Player_2": 1
+    },
+    "reason": "All four pairs have been found."
+  },
+  "timestamp": 1790000015
+}
+```
