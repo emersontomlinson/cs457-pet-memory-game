@@ -42,7 +42,7 @@ GAME_OVER: {"outcome":"win","winner":"Player_1","final_scores":{"Player_1":3,"Pl
 
 ## Disconnects
 
-- `DISCONNECT` is a normal exit.
+- A client sends `DISCONNECT`, then closes its socket normally with TCP FIN.
 - `recv()` returning `b""` means TCP EOF and a disconnected client.
 - `ConnectionResetError`, `BrokenPipeError`, and `ConnectionAbortedError` mean an abrupt disconnect.
 - An in-game disconnect gives the other player a forfeit win. A lobby disconnect returns the server to waiting.
