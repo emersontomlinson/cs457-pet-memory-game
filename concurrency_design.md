@@ -19,11 +19,11 @@ The server will use a lock for the game state, a lock for broadcasts, and a sepa
 
 The game-state lock protects the board, matched cards, scores, active player, and client list.
 
-Before a player’s move can change anything, that client’s thread gets the game-state lock. It checks that the move is allowed, checks both card positions, updates the board and score if needed, and makes a copy of the updated game state.
+Before a player's move can change anything, that client's thread gets the game-state lock. It checks that the move is allowed, checks both card positions, updates the board and score if needed, and makes a copy of the updated game state.
 
 Each client has its own send lock. A thread gets that lock before sending a message so two threads cannot send mixed-up JSON data to the same client.
 
-The broadcast lock keeps `STATE_UPDATE` messages in the right order. A thread gets the broadcast lock before it lets go of the game-state lock. It then sends the update to both players and releases the broadcast lock.
+The broadcast lock keeps `STATE_UPDATE` messages from being sent at the same time. The `broadcast()` function gets the broadcast lock, briefly gets the game-state lock to copy the connected-client list, then sends the same update to both clients.
 
 ## Turn and Score Updates
 
@@ -52,12 +52,4 @@ sequenceDiagram
     else Invalid or out-of-turn move
         Server-->>Player1: ERROR (invalid move or not your turn)
     end
-```
-
-After every valid move, the server sends the same game state to both players. If the cards do not match, both players see them first. The server then hides them and sends the next-turn update.
-
-## Scores
-
-The server keeps one score for each player, starting at zero.
-
-When a player finds a matching pair, the server updates that score while the game-state lock is held. The next `STATE_UPDATE` sends the new score table to both players. `GAME_OVER` also includes the final scores.
+    

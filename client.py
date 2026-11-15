@@ -1,3 +1,5 @@
+"""Terminal client for the Pet Memory Match game"""
+
 import argparse
 import socket
 import sys
@@ -8,37 +10,40 @@ from protocol import receive_messages, send_message
 
 
 def valid_port(value):
+    """Validate that a port is in the allowed range"""
     port = int(value)
 
     if port < 1024 or port > 65535:
         raise argparse.ArgumentTypeError(
-            "Port must be between 1024 and 65535."
+            "Port must be between 1024 and 65535"
         )
 
     return port
 
 
 def parse_args():
+    """Read the required server hostname and port"""
     parser = argparse.ArgumentParser(
-        description="Pet Memory Match game client."
+        description="Pet Memory Match game client"
     )
     parser.add_argument(
         "-i",
         "--host",
         required=True,
-        help="Server hostname or IP address.",
+        help="Server hostname or IP address",
     )
     parser.add_argument(
         "-p",
         "--port",
         required=True,
         type=valid_port,
-        help="Server port number.",
+        help="Server port number",
     )
     return parser.parse_args()
 
 
 def make_message(message_type, player_id, payload):
+    """Create a message that matches the Sprint 1 protocol"""
     return {
         "msg_type": message_type,
         "player_id": player_id,
@@ -48,6 +53,7 @@ def make_message(message_type, player_id, payload):
 
 
 def display_board(board):
+    """Print the shared 2-column, 4-row card board"""
     print()
     print("         A           B")
 
@@ -64,6 +70,7 @@ def display_board(board):
 
 
 def listen_for_messages(client_socket, alias, client_state, state_lock, done):
+    """Receive server updates while the main thread waits for input"""
     buffer = b""
 
     try:
@@ -71,7 +78,7 @@ def listen_for_messages(client_socket, alias, client_state, state_lock, done):
             messages, buffer = receive_messages(client_socket, buffer)
 
             if messages is None:
-                print("\nDisconnected from the server.")
+                print("\nDisconnected from the server")
                 done.set()
                 break
 
@@ -88,7 +95,7 @@ def listen_for_messages(client_socket, alias, client_state, state_lock, done):
                             with state_lock:
                                 client_state["player_id"] = player_id
 
-                    print("\nGame started.")
+                    print("\nGame started")
 
                 elif message_type == "STATE_UPDATE":
                     display_board(payload["board"])
@@ -104,10 +111,12 @@ def listen_for_messages(client_socket, alias, client_state, state_lock, done):
                                 == client_state["player_id"]
                             )
 
-                    if client_state["my_turn"]:
-                        print("Your turn.")
+                        my_turn = client_state["my_turn"]
+
+                    if my_turn:
+                        print("Your turn")
                     else:
-                        print("Waiting for the other player.")
+                        print("Waiting for the other player")
 
                 elif message_type == "ERROR":
                     print(f"[ERROR] {payload['message']}")
@@ -123,10 +132,10 @@ def listen_for_messages(client_socket, alias, client_state, state_lock, done):
                         with state_lock:
                             client_state["my_turn"] = True
 
-                        print("Try again.")
+                        print("Try again")
 
                 elif message_type == "GAME_OVER":
-                    print("\nGame over.")
+                    print("\nGame over")
                     print(f"Final scores: {payload['final_scores']}")
                     print(payload.get("reason", ""))
                     done.set()
@@ -138,15 +147,20 @@ def listen_for_messages(client_socket, alias, client_state, state_lock, done):
 
 
 def main():
+    """Connect to the server and run the terminal game loop"""
     args = parse_args()
-    alias = input("Enter your name: ").strip() or "Player"
 
     try:
         server_ip = socket.gethostbyname(args.host)
     except socket.gaierror:
         print(f"[ERROR] Unable to resolve hostname: {args.host}")
-        print("Check the server name or DNS configuration.")
+        print(
+            "Check your Cisco router DNS configuration "
+            "(ip dns server / ip host) or verify the server name"
+        )
         return 1
+
+    alias = input("Enter your name: ").strip() or "Player"
 
     done = threading.Event()
     state_lock = threading.Lock()
@@ -168,8 +182,12 @@ def main():
                 ),
             )
 
-            print(f"Connected to {args.host} ({server_ip}) on port {args.port}.")
+            print(
+                f"Connected to {args.host} ({server_ip}) "
+                f"on port {args.port}"
+            )
 
+            # Listen for server updates without blocking keyboard input
             listener = threading.Thread(
                 target=listen_for_messages,
                 args=(
@@ -192,7 +210,9 @@ def main():
                     time.sleep(0.1)
                     continue
 
-                move = input("Choose two cards, such as A1 B2, or type quit: ")
+                move = input(
+                    "Choose two cards, such as A1 B2, or type quit: "
+                )
                 move = move.strip()
 
                 if move.lower() == "quit":
@@ -230,3 +250,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+    

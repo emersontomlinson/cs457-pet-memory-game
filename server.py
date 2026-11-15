@@ -1,3 +1,5 @@
+"""Threaded TCP server for the Pet Memory Match game"""
+
 import argparse
 import socket
 import threading
@@ -10,6 +12,7 @@ from protocol import receive_messages, send_message
 GAME = PetMemoryGame()
 CLIENTS = {}
 
+# Protect shared game state and ordered broadcasts
 STATE_LOCK = threading.Lock()
 BROADCAST_LOCK = threading.Lock()
 
@@ -17,31 +20,34 @@ GAME_RUNNING = False
 
 
 def valid_port(value):
+    """Validate that a port is in the allowed range"""
     port = int(value)
 
     if port < 1024 or port > 65535:
         raise argparse.ArgumentTypeError(
-            "Port must be between 1024 and 65535."
+            "Port must be between 1024 and 65535"
         )
 
     return port
 
 
 def parse_args():
+    """Read the required server port"""
     parser = argparse.ArgumentParser(
-        description="Pet Memory Match game server."
+        description="Pet Memory Match game server"
     )
     parser.add_argument(
         "-p",
         "--port",
         required=True,
         type=valid_port,
-        help="Port for the server to listen on.",
+        help="Port for the server to listen on",
     )
     return parser.parse_args()
 
 
 def make_message(message_type, payload):
+    """Create a server message that matches the Sprint 1 protocol"""
     return {
         "msg_type": message_type,
         "player_id": "SERVER",
@@ -51,6 +57,7 @@ def make_message(message_type, payload):
 
 
 def send_to_client(client, message):
+    """Send one complete message without mixing socket bytes"""
     try:
         with client["send_lock"]:
             send_message(client["socket"], message)
@@ -59,6 +66,7 @@ def send_to_client(client, message):
 
 
 def broadcast(message):
+    """Send the same update to every connected player"""
     with BROADCAST_LOCK:
         with STATE_LOCK:
             recipients = list(CLIENTS.values())
@@ -68,6 +76,7 @@ def broadcast(message):
 
 
 def current_state(revealed=(), message=""):
+    """Build a safe board-and-score update for both clients"""
     return {
         "board": GAME.board_view(revealed),
         "scores": GAME.scores.copy(),
@@ -77,6 +86,7 @@ def current_state(revealed=(), message=""):
 
 
 def send_error(client, code, message):
+    """Send a readable error message to one client"""
     send_to_client(
         client,
         make_message(
@@ -89,7 +99,17 @@ def send_error(client, code, message):
     )
 
 
+def next_player_id():
+    """Return the available player ID without replacing a client"""
+    for player_id in ("Player_1", "Player_2"):
+        if player_id not in CLIENTS:
+            return player_id
+
+    return None
+
+
 def start_game():
+    """Shuffle a new board and notify both connected players"""
     global GAME_RUNNING
 
     with STATE_LOCK:
@@ -119,11 +139,13 @@ def start_game():
 
 
 def handle_connect(client_socket, alias):
+    """Register a client after it sends a valid CONNECT message"""
     with STATE_LOCK:
-        if len(CLIENTS) >= 2:
-            return None, "The game already has two players."
+        player_id = next_player_id()
 
-        player_id = f"Player_{len(CLIENTS) + 1}"
+        if player_id is None:
+            return None, "The game already has two players"
+
         client = {
             "socket": client_socket,
             "alias": alias,
@@ -137,7 +159,7 @@ def handle_connect(client_socket, alias):
             client,
             make_message(
                 "LOBBY_WAIT",
-                {"message": "Waiting for Player 2."},
+                {"message": "Waiting for Player 2"},
             ),
         )
     else:
@@ -147,25 +169,26 @@ def handle_connect(client_socket, alias):
 
 
 def handle_move(player_id, client, positions):
+    """Validate a move, update the game, and broadcast the result"""
     global GAME_RUNNING
 
     with STATE_LOCK:
         if not GAME_RUNNING:
             error_code = "MALFORMED_MESSAGE"
-            error_message = "The game has not started yet."
+            error_message = "The game has not started yet"
         else:
             error_code = GAME.validate_move(player_id, positions)
 
             if error_code == "NOT_YOUR_TURN":
-                error_message = "It is not your turn."
+                error_message = "It is not your turn"
             elif error_code == "INVALID_POSITION":
-                error_message = "Choose positions from A1 through B4."
+                error_message = "Choose positions from A1 through B4"
             elif error_code == "DUPLICATE_POSITION":
-                error_message = "Choose two different card positions."
+                error_message = "Choose two different card positions"
             elif error_code == "CARD_ALREADY_MATCHED":
-                error_message = "One of those cards is already matched."
+                error_message = "One of those cards is already matched"
             elif error_code == "MALFORMED_MESSAGE":
-                error_message = "Choose exactly two card positions."
+                error_message = "Choose exactly two card positions"
             else:
                 error_message = ""
 
@@ -189,11 +212,11 @@ def handle_move(player_id, client, positions):
                 if scores["Player_1"] == scores["Player_2"]:
                     outcome = "tie"
                     winner = None
-                    reason = "The game ended in a tie."
+                    reason = "The game ended in a tie"
                 else:
                     outcome = "win"
                     winner = max(scores, key=scores.get)
-                    reason = f"{winner} found the most pairs."
+                    reason = f"{winner} found the most pairs"
 
                 game_over = make_message(
                     "GAME_OVER",
@@ -211,6 +234,7 @@ def handle_move(player_id, client, positions):
         send_error(client, error_code, error_message)
         return
 
+    # Both clients see the selected cards before a mismatch is hidden
     broadcast(revealed_update)
 
     if result["is_match"]:
@@ -237,6 +261,7 @@ def handle_move(player_id, client, positions):
 
 
 def remove_client(player_id):
+    """Remove a disconnected client and award a forfeit if needed"""
     global GAME_RUNNING
 
     with STATE_LOCK:
@@ -256,7 +281,7 @@ def remove_client(player_id):
                     "outcome": "forfeit",
                     "winner": remaining_player,
                     "final_scores": scores,
-                    "reason": "The other player disconnected.",
+                    "reason": "The other player disconnected",
                 },
             )
         else:
@@ -267,11 +292,12 @@ def remove_client(player_id):
 
 
 def handle_client(client_socket, client_address):
+    """Receive and handle messages for one connected client"""
     buffer = b""
     player_id = None
     client = None
 
-    print(f"Client connected from {client_address}.")
+    print(f"Client connected from {client_address}")
 
     try:
         while True:
@@ -281,8 +307,26 @@ def handle_client(client_socket, client_address):
                 break
 
             for message in messages:
+                if not isinstance(message, dict):
+                    if client:
+                        send_error(
+                            client,
+                            "MALFORMED_MESSAGE",
+                            "Message must be a JSON object",
+                        )
+                    continue
+
                 message_type = message.get("msg_type")
                 payload = message.get("payload", {})
+
+                if not isinstance(payload, dict):
+                    if client:
+                        send_error(
+                            client,
+                            "MALFORMED_MESSAGE",
+                            "Payload must be a JSON object",
+                        )
+                    continue
 
                 if message_type == "CONNECT" and player_id is None:
                     alias = payload.get("alias", "Player")
@@ -304,7 +348,7 @@ def handle_client(client_socket, client_address):
                     with STATE_LOCK:
                         client = CLIENTS[player_id]
 
-                    print(f"{player_id} joined as {alias}.")
+                    print(f"{player_id} joined as {alias}")
 
                 elif message_type == "MOVE" and player_id:
                     handle_move(
@@ -320,7 +364,7 @@ def handle_client(client_socket, client_address):
                     send_error(
                         client,
                         "MALFORMED_MESSAGE",
-                        "Unknown or invalid message.",
+                        "Unknown or invalid message",
                     )
 
     except (ConnectionResetError, ValueError, OSError) as error:
@@ -331,10 +375,11 @@ def handle_client(client_socket, client_address):
             remove_client(player_id)
 
         client_socket.close()
-        print(f"Client disconnected: {client_address}.")
+        print(f"Client disconnected: {client_address}")
 
 
 def main():
+    """Start the listening socket and accept client connections"""
     args = parse_args()
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
@@ -342,12 +387,13 @@ def main():
         server_socket.bind(("0.0.0.0", args.port))
         server_socket.listen()
 
-        print(f"Pet Memory Match server listening on port {args.port}.")
-        print("Waiting for players...")
+        print(f"Pet Memory Match server listening on port {args.port}")
+        print("Waiting for players")
 
         while True:
             client_socket, client_address = server_socket.accept()
 
+            # Each client gets a worker thread
             client_thread = threading.Thread(
                 target=handle_client,
                 args=(client_socket, client_address),
