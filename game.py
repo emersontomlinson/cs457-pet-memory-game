@@ -1,3 +1,5 @@
+"""Game rules and shared memory-match game state."""
+
 import random
 
 
@@ -6,6 +8,8 @@ PET_NAMES = ("Cordelia", "Yam", "Burger", "ChaCha")
 
 
 class PetMemoryGame:
+    """Stores the board, scores, turns, and matched cards."""
+
     def __init__(self):
         self.board = {}
         self.matched = set()
@@ -14,6 +18,7 @@ class PetMemoryGame:
         self.players = []
 
     def start(self, player_one, player_two):
+        """Create a shuffled board for two players."""
         cards = list(PET_NAMES) * 2
         random.shuffle(cards)
 
@@ -27,6 +32,7 @@ class PetMemoryGame:
         self.active_player = player_one
 
     def other_player(self, player_id):
+        """Return the player who is not the current player."""
         for player in self.players:
             if player != player_id:
                 return player
@@ -34,9 +40,11 @@ class PetMemoryGame:
         return None
 
     def board_view(self, revealed=()):
+        """Return the board view that both clients should see."""
         view = {}
 
         for position in POSITIONS:
+            # Matched and currently revealed cards stay visible
             if position in self.matched or position in revealed:
                 view[position] = self.board[position]
             else:
@@ -45,6 +53,7 @@ class PetMemoryGame:
         return view
 
     def validate_move(self, player_id, positions):
+        """Return an error code for an invalid move, or None."""
         if player_id != self.active_player:
             return "NOT_YOUR_TURN"
 
@@ -65,6 +74,7 @@ class PetMemoryGame:
         return None
 
     def evaluate_move(self, player_id, positions):
+        """Reveal two cards and update the score or active player."""
         first, second = positions
         is_match = self.board[first] == self.board[second]
 
@@ -81,3 +91,4 @@ class PetMemoryGame:
             "game_over": game_over,
             "revealed": positions,
         }
+    
