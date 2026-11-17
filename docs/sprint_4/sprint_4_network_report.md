@@ -45,8 +45,8 @@ Both clients also used the router as their DNS server. The name `server.tomlinso
 
 ## DNS Capture
 
-The packet capture shows Client 1 asking the router for the address of `server.tomlinson.edu`.
+Frame 2 shows Client 1 asking the router at `192.168.10.1` for the address of `server.tomlinson.edu`.
 
-The router replied with `192.168.20.100`, which is the server’s address.
+Frame 4 shows the router replying with `192.168.20.100`, which is the server’s address.
 
 ![DNS capture](dns.png)
