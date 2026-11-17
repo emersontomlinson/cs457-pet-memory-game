@@ -31,6 +31,10 @@ Both clients successfully pinged the server at `192.168.20.100` with 0% packet l
 
 Both clients also used the router as their DNS server. The name `server.tomlinson.edu` resolved to `192.168.20.100`.
 
+![Client 1 tests](client1test.png)
+
+![Client 2 tests](client2test.png)
+
 ## DNS Capture
 
 The packet capture shows Client 1 asking the router for the address of `server.tomlinson.edu`.
