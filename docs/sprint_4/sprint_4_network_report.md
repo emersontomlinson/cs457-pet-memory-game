@@ -25,6 +25,14 @@ Client 1 received `192.168.10.2` through DHCP. Client 2 received `192.168.11.2` 
 
 ![DHCP bindings](binding.png)
 
+## Server Setup
+
+ET-Server uses the static address `192.168.20.100/24`.
+
+Its default route uses `192.168.20.1` as the gateway.
+
+![Server setup](server_setup.png)
+
 ## Tests
 
 Both clients successfully pinged the server at `192.168.20.100` with 0% packet loss.
